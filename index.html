@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contractor Timesheet</title>
+  <title>Contractor Timesheet - Abel Bustos</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -363,12 +363,19 @@
       outline: none;
       border-color: #00e87b;
     }
+    
+    .save-indicator {
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>📋 Contractor Timesheet</h1>
-    <p class="subtitle" id="workerSubtitle">Light Bright LC - Weekly Hours</p>
+    <h1>📋 Weekly Timesheet</h1>
+    <p class="subtitle">Abel Bustos Crew • Light Bright LC</p>
     
     <div class="week-selector">
       <button class="week-btn" onclick="changeWeek(-1)">◀</button>
@@ -379,19 +386,20 @@
     <div id="workerCards"></div>
     
     <div class="grand-total">
-      <div class="grand-total-label">Week Total</div>
+      <div class="grand-total-label">Invoice Total (Pay to Abel)</div>
       <div class="grand-total-amount" id="grandTotal">$0.00</div>
     </div>
     
     <div class="notes-section">
       <div class="notes-label">Notes (optional)</div>
-      <textarea class="notes-input" id="notesInput" placeholder="Any notes for this week..."></textarea>
+      <textarea class="notes-input" id="notesInput" placeholder="Any notes for this week..." onchange="autoSave()"></textarea>
     </div>
     
     <div class="actions">
       <button class="btn btn-primary" onclick="previewInvoice()">📄 Preview Invoice</button>
       <button class="btn btn-secondary" onclick="saveData()">💾 Save Progress</button>
     </div>
+    <div class="save-indicator" id="saveIndicator"></div>
   </div>
   
   <div class="modal" id="invoiceModal">
@@ -401,33 +409,14 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const ALL_WORKERS = {
-      'abel': { name: 'Abel Bustos', rate: 18 },
-      'silvia': { name: 'Silvia', rate: 16 },
-      'citlay': { name: 'Citlay', rate: 16 }
-    };
+    const WORKERS = [
+      { id: 'abel', name: 'Abel Bustos', rate: 18 },
+      { id: 'silvia', name: 'Silvia', rate: 16 },
+      { id: 'citlay', name: 'Citlay', rate: 16 }
+    ];
     
     const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const BOB_EMAIL = 'bobdodgecreative@gmail.com';
-    
-    // Get worker from URL param
-    const urlParams = new URLSearchParams(window.location.search);
-    const workerId = urlParams.get('worker')?.toLowerCase();
-    const CURRENT_WORKER = ALL_WORKERS[workerId];
-    
-    // If no valid worker, show picker
-    if (!CURRENT_WORKER) {
-      document.body.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:20px;padding:20px;">
-          <h1 style="color:#00e87b;font-size:24px;">📋 Contractor Timesheet</h1>
-          <p style="color:#64748b;">Select your name:</p>
-          <a href="?worker=abel" style="display:block;padding:16px 40px;background:linear-gradient(135deg,#00e87b,#00b861);color:#000;text-decoration:none;border-radius:10px;font-weight:700;font-size:18px;">Abel Bustos</a>
-          <a href="?worker=silvia" style="display:block;padding:16px 40px;background:linear-gradient(135deg,#00e87b,#00b861);color:#000;text-decoration:none;border-radius:10px;font-weight:700;font-size:18px;">Silvia</a>
-          <a href="?worker=citlay" style="display:block;padding:16px 40px;background:linear-gradient(135deg,#00e87b,#00b861);color:#000;text-decoration:none;border-radius:10px;font-weight:700;font-size:18px;">Citlay</a>
-        </div>
-      `;
-      throw new Error('No worker selected');
-    }
     
     let currentWeekStart = getMonday(new Date());
     let timesheetData = {};
@@ -462,35 +451,53 @@
       loadWeek();
     }
     
-    // Load data from localStorage (worker-specific)
+    // Load data from localStorage
     function loadData() {
-      const storageKey = `timesheet_${workerId}`;
-      const saved = localStorage.getItem(storageKey);
+      const saved = localStorage.getItem('abelCrewTimesheet');
       if (saved) {
         timesheetData = JSON.parse(saved);
       }
     }
     
-    // Save data to localStorage (worker-specific)
+    // Save data to localStorage
     function saveData() {
       saveCurrentWeek();
-      const storageKey = `timesheet_${workerId}`;
-      localStorage.setItem(storageKey, JSON.stringify(timesheetData));
+      localStorage.setItem('abelCrewTimesheet', JSON.stringify(timesheetData));
       showToast('✓ Saved!');
+      updateSaveIndicator();
+    }
+    
+    // Auto-save after changes
+    let autoSaveTimeout;
+    function autoSave() {
+      clearTimeout(autoSaveTimeout);
+      autoSaveTimeout = setTimeout(() => {
+        saveCurrentWeek();
+        localStorage.setItem('abelCrewTimesheet', JSON.stringify(timesheetData));
+        updateSaveIndicator();
+      }, 1000);
+    }
+    
+    function updateSaveIndicator() {
+      const el = document.getElementById('saveIndicator');
+      el.textContent = `Auto-saved ${new Date().toLocaleTimeString()}`;
     }
     
     // Save current week's hours
     function saveCurrentWeek() {
       const weekKey = getWeekKey(currentWeekStart);
       timesheetData[weekKey] = {
-        hours: [],
+        hours: {},
         notes: document.getElementById('notesInput').value
       };
       
-      DAYS.forEach((day, i) => {
-        const input = document.getElementById(`hours-${i}`);
-        const value = parseFloat(input?.value) || 0;
-        timesheetData[weekKey].hours.push(value);
+      WORKERS.forEach(worker => {
+        timesheetData[weekKey].hours[worker.id] = [];
+        DAYS.forEach((day, i) => {
+          const input = document.getElementById(`hours-${worker.id}-${i}`);
+          const value = parseFloat(input?.value) || 0;
+          timesheetData[weekKey].hours[worker.id].push(value);
+        });
       });
     }
     
@@ -499,41 +506,31 @@
       document.getElementById('weekDisplay').textContent = formatWeekRange(currentWeekStart);
       
       const weekKey = getWeekKey(currentWeekStart);
-      const weekData = timesheetData[weekKey] || { hours: [], notes: '' };
+      const weekData = timesheetData[weekKey] || { hours: {}, notes: '' };
       
       document.getElementById('notesInput').value = weekData.notes || '';
       
-      const hours = weekData.hours || [0, 0, 0, 0, 0, 0, 0];
-      DAYS.forEach((day, i) => {
-        const input = document.getElementById(`hours-${i}`);
-        if (input) {
-          input.value = hours[i] || '';
-        }
+      WORKERS.forEach(worker => {
+        const hours = weekData.hours?.[worker.id] || [0, 0, 0, 0, 0, 0, 0];
+        DAYS.forEach((day, i) => {
+          const input = document.getElementById(`hours-${worker.id}-${i}`);
+          if (input) {
+            input.value = hours[i] || '';
+          }
+        });
       });
       
       updateTotals();
     }
     
-    // Auto-save on change
-    let autoSaveTimeout;
-    function autoSave() {
-      clearTimeout(autoSaveTimeout);
-      autoSaveTimeout = setTimeout(() => {
-        saveData();
-      }, 1000);
-    }
-    
-    // Render worker card (single worker)
+    // Render worker cards
     function renderWorkerCards() {
-      // Update subtitle with worker name
-      document.getElementById('workerSubtitle').textContent = `${CURRENT_WORKER.name} • $${CURRENT_WORKER.rate}/hr`;
-      
       const container = document.getElementById('workerCards');
-      container.innerHTML = `
+      container.innerHTML = WORKERS.map(worker => `
         <div class="worker-card">
           <div class="worker-header">
-            <div class="worker-name">Weekly Hours</div>
-            <div class="worker-rate">Enter your hours each day</div>
+            <div class="worker-name">${worker.name}</div>
+            <div class="worker-rate">$${worker.rate}/hr</div>
           </div>
           <div class="days-grid">
             ${DAYS.map((day, i) => `
@@ -541,36 +538,43 @@
                 <div class="day-label">${day}</div>
                 <input type="number" 
                        class="day-input" 
-                       id="hours-${i}"
+                       id="hours-${worker.id}-${i}"
                        min="0" 
                        max="24" 
                        step="0.25"
                        placeholder="0"
+                       inputmode="decimal"
                        onchange="updateTotals(); autoSave();">
               </div>
             `).join('')}
           </div>
           <div class="worker-totals">
-            <div class="worker-total-hours" id="total-hours">0 hrs</div>
-            <div class="worker-total-pay" id="total-pay">$0.00</div>
+            <div class="worker-total-hours" id="total-hours-${worker.id}">0 hrs</div>
+            <div class="worker-total-pay" id="total-pay-${worker.id}">$0.00</div>
           </div>
         </div>
-      `;
+      `).join('');
     }
     
     // Update totals
     function updateTotals() {
-      let totalHours = 0;
-      DAYS.forEach((day, i) => {
-        const input = document.getElementById(`hours-${i}`);
-        totalHours += parseFloat(input?.value) || 0;
+      let grandTotal = 0;
+      
+      WORKERS.forEach(worker => {
+        let totalHours = 0;
+        DAYS.forEach((day, i) => {
+          const input = document.getElementById(`hours-${worker.id}-${i}`);
+          totalHours += parseFloat(input?.value) || 0;
+        });
+        
+        const totalPay = totalHours * worker.rate;
+        grandTotal += totalPay;
+        
+        document.getElementById(`total-hours-${worker.id}`).textContent = `${totalHours} hrs`;
+        document.getElementById(`total-pay-${worker.id}`).textContent = `$${totalPay.toFixed(2)}`;
       });
       
-      const totalPay = totalHours * CURRENT_WORKER.rate;
-      
-      document.getElementById('total-hours').textContent = `${totalHours} hrs`;
-      document.getElementById('total-pay').textContent = `$${totalPay.toFixed(2)}`;
-      document.getElementById('grandTotal').textContent = `$${totalPay.toFixed(2)}`;
+      document.getElementById('grandTotal').textContent = `$${grandTotal.toFixed(2)}`;
     }
     
     // Preview invoice
@@ -578,17 +582,21 @@
       saveCurrentWeek();
       
       const weekKey = getWeekKey(currentWeekStart);
-      const weekData = timesheetData[weekKey] || { hours: [], notes: '' };
+      const weekData = timesheetData[weekKey] || { hours: {}, notes: '' };
       const weekRange = formatWeekRange(currentWeekStart);
       
-      // Calculate invoice number from week + worker
-      const weekNum = Math.floor((currentWeekStart.getTime() - new Date('2025-01-01').getTime()) / (7 * 24 * 60 * 60 * 1000));
-      const invoiceNum = `${weekNum}-${workerId.toUpperCase().slice(0,3)}`;
+      // Calculate invoice number from week
+      const invoiceNum = Math.floor((currentWeekStart.getTime() - new Date('2025-01-01').getTime()) / (7 * 24 * 60 * 60 * 1000)) + 200;
       
-      const totalHours = (weekData.hours || []).reduce((a, b) => a + b, 0);
-      const totalPay = totalHours * CURRENT_WORKER.rate;
+      let subtotal = 0;
+      const rows = WORKERS.map(worker => {
+        const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + b, 0);
+        const total = hours * worker.rate;
+        subtotal += total;
+        return { name: worker.name, hours, rate: worker.rate, total };
+      }).filter(r => r.hours > 0);
       
-      if (totalHours === 0) {
+      if (rows.length === 0) {
         showToast('No hours entered for this week', true);
         return;
       }
@@ -600,63 +608,65 @@
       
       const invoiceHTML = `
         <div class="invoice-header">
-          <div class="invoice-title">TIMESHEET</div>
+          <div class="invoice-title">INVOICE</div>
         </div>
         
         <div class="invoice-meta">
           <div>
             <strong>From:</strong><br>
-            ${CURRENT_WORKER.name}
+            Abel Bustos<br>
+            1301 Harvey Rd apt 291<br>
+            College Station, TX 77840<br>
+            956-258-7694
           </div>
           <div style="text-align: right;">
-            <strong>Week:</strong> ${weekRange}<br>
-            <strong>Date:</strong> ${today}
+            <strong>Invoice #:</strong> ${invoiceNum}<br>
+            <strong>Date:</strong> ${today}<br>
+            <strong>Due:</strong> ${dueDateStr}
           </div>
         </div>
         
         <div class="invoice-meta">
           <div>
-            <strong>To:</strong><br>
+            <strong>Bill To:</strong><br>
             Light Bright LC<br>
-            College Station, TX
+            4501 Mills Park Circle<br>
+            College Station, TX 77845
           </div>
           <div style="text-align: right;">
             <strong>Project:</strong><br>
-            Warehouse work
+            Warehouse work<br>
+            <strong>Week:</strong><br>
+            ${weekRange}
           </div>
         </div>
         
         <table class="invoice-table">
           <thead>
             <tr>
-              <th>Day</th>
+              <th>Description</th>
               <th>Hours</th>
+              <th>Rate</th>
+              <th>Amount</th>
             </tr>
           </thead>
           <tbody>
-            ${DAYS.map((day, i) => {
-              const hrs = weekData.hours?.[i] || 0;
-              return hrs > 0 ? `<tr><td>${day}</td><td>${hrs}</td></tr>` : '';
-            }).join('')}
+            ${rows.map(r => `
+              <tr>
+                <td>${r.name}</td>
+                <td>${r.hours}</td>
+                <td>$${r.rate.toFixed(2)}</td>
+                <td>$${r.total.toFixed(2)}</td>
+              </tr>
+            `).join('')}
             <tr class="invoice-total-row">
-              <td><strong>Total Hours</strong></td>
-              <td><strong>${totalHours}</strong></td>
+              <td colspan="3">TOTAL (Payable to Abel Bustos)</td>
+              <td>$${subtotal.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
         
-        <div style="margin-top:20px;padding:16px;background:#f5f5f5;border-radius:8px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-            <span>Rate:</span>
-            <span>$${CURRENT_WORKER.rate.toFixed(2)}/hr</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:700;">
-            <span>Amount Due:</span>
-            <span>$${totalPay.toFixed(2)}</span>
-          </div>
-        </div>
-        
-        ${weekData.notes ? `<p style="margin-top:16px;"><strong>Notes:</strong> ${weekData.notes}</p>` : ''}
+        ${weekData.notes ? `<p><strong>Notes:</strong> ${weekData.notes}</p>` : ''}
         
         <div class="modal-actions">
           <button class="modal-btn modal-btn-send" onclick="sendInvoice()">📧 Send to Bob</button>
@@ -678,28 +688,28 @@
       saveCurrentWeek();
       
       const weekKey = getWeekKey(currentWeekStart);
-      const weekData = timesheetData[weekKey] || { hours: [], notes: '' };
+      const weekData = timesheetData[weekKey] || { hours: {}, notes: '' };
       const weekRange = formatWeekRange(currentWeekStart);
       
-      const totalHours = (weekData.hours || []).reduce((a, b) => a + b, 0);
-      const totalPay = totalHours * CURRENT_WORKER.rate;
+      let subtotal = 0;
+      const lines = WORKERS.map(worker => {
+        const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + b, 0);
+        const total = hours * worker.rate;
+        subtotal += total;
+        return hours > 0 ? `${worker.name}: ${hours} hrs × $${worker.rate}/hr = $${total.toFixed(2)}` : null;
+      }).filter(Boolean);
       
-      // Build daily breakdown
-      const dailyLines = DAYS.map((day, i) => {
-        const hrs = weekData.hours?.[i] || 0;
-        return hrs > 0 ? `  ${day}: ${hrs} hrs` : null;
-      }).filter(Boolean).join('\n');
-      
-      const subject = encodeURIComponent(`Timesheet - ${CURRENT_WORKER.name} - ${weekRange}`);
+      const subject = encodeURIComponent(`Invoice - Abel Bustos Crew - ${weekRange}`);
       const body = encodeURIComponent(
-        `TIMESHEET\n` +
-        `=========\n\n` +
-        `Worker: ${CURRENT_WORKER.name}\n` +
+        `INVOICE\n` +
+        `=======\n\n` +
+        `From: Abel Bustos\n` +
         `Week: ${weekRange}\n` +
-        `Rate: $${CURRENT_WORKER.rate}/hr\n\n` +
-        `HOURS:\n${dailyLines}\n\n` +
-        `Total Hours: ${totalHours}\n` +
-        `AMOUNT DUE: $${totalPay.toFixed(2)}\n` +
+        `Project: Warehouse work\n\n` +
+        `BREAKDOWN:\n` +
+        lines.join('\n') + '\n\n' +
+        `TOTAL DUE: $${subtotal.toFixed(2)}\n` +
+        `(Payable to Abel Bustos)\n` +
         (weekData.notes ? `\nNotes: ${weekData.notes}` : '')
       );
       
