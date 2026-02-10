@@ -387,15 +387,22 @@
       .btn { padding: 12px 20px; font-size: 14px; }
     }
   </style>
+  <script src="supabase-sync.js"></script>
 </head>
 <body>
+  <a href="https://thelightparkops.com" style="position: absolute; top: 20px; left: 20px; color: #a855f7; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s; z-index: 1000;" onmouseover="this.style.color='#06d6a0'" onmouseout="this.style.color='#a855f7'">
+    ← Dashboard
+  </a>
   <div id="splash" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0B0D14;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.4s;">
     <div style="font-size:64px;margin-bottom:16px;">⏰</div>
     <div style="font-size:24px;font-weight:700;background:linear-gradient(135deg,#a855f7,#06d6a0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Contractor Timesheet</div>
     <div style="color:#8888a0;margin-top:8px;">Loading...</div>
   </div>
   <script>setTimeout(()=>{const s=document.getElementById("splash");if(s){s.style.opacity="0";setTimeout(()=>s.style.display="none",400);}},1500);</script>
-  <div class="container">
+  <div class="container" style="position: relative; padding-top: 50px;">
+    <a href="https://thelightparkops.com" style="position: absolute; top: 20px; left: 20px; color: #a855f7; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s; z-index: 10;" onmouseover="this.style.color='#06d6a0'" onmouseout="this.style.color='#a855f7'">
+      ← Dashboard
+    </a>
     <h1>📋 Weekly Timesheet</h1>
     <p class="subtitle">Abel Bustos Crew • Light Bright LC</p>
     
