@@ -388,6 +388,8 @@
     }
   </style>
   <script src="supabase-sync.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
   <a href="https://thelightparkops.com" style="position: absolute; top: 20px; left: 20px; color: #a855f7; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s; z-index: 1000;" onmouseover="this.style.color='#06d6a0'" onmouseout="this.style.color='#a855f7'">
@@ -445,7 +447,7 @@
     ];
     
     const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const BOB_EMAIL = 'bobdodgecreative@gmail.com';
+    const ZAC_EMAIL = 'zthompson@amstadco.com';
     
     let currentWeekStart = getMonday(new Date());
     let timesheetData = {};
@@ -698,7 +700,8 @@
         ${weekData.notes ? `<p><strong>Notes:</strong> ${weekData.notes}</p>` : ''}
         
         <div class="modal-actions">
-          <button class="modal-btn modal-btn-send" onclick="sendInvoice()">📧 Send to Bob</button>
+          <button class="modal-btn modal-btn-send" onclick="sendInvoice()">📧 Send to Amstad</button>
+          <button class="modal-btn" style="background:#2563eb;color:#fff;" onclick="downloadPDF()">📥 Download PDF</button>
           <button class="modal-btn modal-btn-close" onclick="closeModal()">Close</button>
         </div>
       `;
@@ -712,39 +715,156 @@
       document.getElementById('invoiceModal').classList.remove('active');
     }
     
-    // Send invoice via email
-    function sendInvoice() {
+    // Generate PDF invoice
+    function generatePDF() {
       saveCurrentWeek();
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
       
       const weekKey = getWeekKey(currentWeekStart);
       const weekData = timesheetData[weekKey] || { hours: {}, notes: '' };
       const weekRange = formatWeekRange(currentWeekStart);
+      const invoiceNum = Math.floor((currentWeekStart.getTime() - new Date('2025-01-01').getTime()) / (7 * 24 * 60 * 60 * 1000)) + 200;
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 7);
+      const dueDateStr = dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       
+      // Dark header bar
+      doc.setFillColor(26, 26, 26);
+      doc.rect(0, 0, 210, 40, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(28);
+      doc.setFont('helvetica', 'bold');
+      doc.text('INVOICE', 20, 27);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Light Bright LC', 150, 20);
+      doc.text('Contractor Services', 150, 27);
+      
+      // Reset text color
+      doc.setTextColor(0, 0, 0);
+      let y = 55;
+      
+      // From / Invoice info side by side
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('From:', 20, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Abel Bustos', 20, y + 6);
+      doc.text('1301 Harvey Rd apt 291', 20, y + 12);
+      doc.text('College Station, TX 77840', 20, y + 18);
+      doc.text('956-258-7694', 20, y + 24);
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Invoice #:', 140, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(invoiceNum), 170, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Date:', 140, y + 8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(today, 155, y + 8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Due:', 140, y + 16);
+      doc.setFont('helvetica', 'normal');
+      doc.text(dueDateStr, 153, y + 16);
+      
+      y += 38;
+      
+      // Bill To
+      doc.setFont('helvetica', 'bold');
+      doc.text('Bill To:', 20, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Light Bright LC', 20, y + 6);
+      doc.text('4501 Mills Park Circle', 20, y + 12);
+      doc.text('College Station, TX 77845', 20, y + 18);
+      
+      // Project / Week
+      doc.setFont('helvetica', 'bold');
+      doc.text('Project:', 140, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Warehouse work', 140, y + 6);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Week:', 140, y + 14);
+      doc.setFont('helvetica', 'normal');
+      doc.text(weekRange, 140, y + 20);
+      
+      y += 32;
+      
+      // Table data
       let subtotal = 0;
-      const lines = WORKERS.map(worker => {
+      const tableRows = WORKERS.map(worker => {
         const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + b, 0);
         const total = hours * worker.rate;
         subtotal += total;
-        return hours > 0 ? `${worker.name}: ${hours} hrs × $${worker.rate}/hr = $${total.toFixed(2)}` : null;
+        return hours > 0 ? [worker.name, String(hours), '$' + worker.rate.toFixed(2), '$' + total.toFixed(2)] : null;
       }).filter(Boolean);
       
+      doc.autoTable({
+        startY: y,
+        head: [['Description', 'Hours', 'Rate', 'Amount']],
+        body: tableRows,
+        foot: [['TOTAL (Payable to Abel Bustos)', '', '', '$' + subtotal.toFixed(2)]],
+        theme: 'grid',
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11 },
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 12 },
+        styles: { fontSize: 10, cellPadding: 6 },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { halign: 'center' },
+          2: { halign: 'right' },
+          3: { halign: 'right' }
+        },
+        margin: { left: 20, right: 20 }
+      });
+      
+      // Notes
+      if (weekData.notes) {
+        const finalY = doc.lastAutoTable.finalY + 15;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Notes:', 20, finalY);
+        doc.setFont('helvetica', 'normal');
+        doc.text(weekData.notes, 20, finalY + 7, { maxWidth: 170 });
+      }
+      
+      return { doc, weekRange, subtotal };
+    }
+    
+    // Download PDF only
+    function downloadPDF() {
+      const result = generatePDF();
+      if (!result) return;
+      const filename = 'Invoice-AbelBustos-' + result.weekRange.replace(/[^a-zA-Z0-9-]/g, '') + '.pdf';
+      result.doc.save(filename);
+      showToast('📄 Invoice PDF downloaded!');
+    }
+    
+    // Send invoice via email with PDF
+    function sendInvoice() {
+      const result = generatePDF();
+      if (!result) return;
+      const weekRange = result.weekRange;
+      const filename = 'Invoice-AbelBustos-' + weekRange.replace(/[^a-zA-Z0-9-]/g, '') + '.pdf';
+      
+      // Download the PDF
+      result.doc.save(filename);
+      
+      // Open mailto
       const subject = encodeURIComponent(`Invoice - Abel Bustos Crew - ${weekRange}`);
       const body = encodeURIComponent(
-        `INVOICE\n` +
-        `=======\n\n` +
-        `From: Abel Bustos\n` +
-        `Week: ${weekRange}\n` +
-        `Project: Warehouse work\n\n` +
-        `BREAKDOWN:\n` +
-        lines.join('\n') + '\n\n' +
-        `TOTAL DUE: $${subtotal.toFixed(2)}\n` +
-        `(Payable to Abel Bustos)\n` +
-        (weekData.notes ? `\nNotes: ${weekData.notes}` : '')
+        `Hi Zac,\n\n` +
+        `Please find attached the PDF invoice for the week of ${weekRange}.\n\n` +
+        `Filename: ${filename}\n` +
+        `Total Due: $${result.subtotal.toFixed(2)}\n` +
+        `Payable to: Abel Bustos\n\n` +
+        `Please don't forget to attach the downloaded PDF to this email.\n\n` +
+        `Thank you!`
       );
       
-      window.open(`mailto:${BOB_EMAIL}?subject=${subject}&body=${body}`, '_blank');
+      window.open(`mailto:${ZAC_EMAIL}?subject=${subject}&body=${body}`, '_blank');
       closeModal();
-      showToast('📧 Opening email...');
+      showToast('📄 Invoice PDF downloaded! Attach it to the email.');
     }
     
     // Show toast
