@@ -447,7 +447,7 @@
     ];
     
     const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const ZAC_EMAIL = 'zthompson@amstadco.com';
+    const API_ENDPOINT = 'https://thelightparkops.com/api/contractor-invoice';
     
     let currentWeekStart = getMonday(new Date());
     let timesheetData = {};
@@ -700,7 +700,7 @@
         ${weekData.notes ? `<p><strong>Notes:</strong> ${weekData.notes}</p>` : ''}
         
         <div class="modal-actions">
-          <button class="modal-btn modal-btn-send" onclick="sendInvoice()">📧 Send to Zac</button>
+          <button class="modal-btn modal-btn-send" onclick="sendInvoice()">📧 Email to AP</button>
           <button class="modal-btn" style="background:#2563eb;color:#fff;" onclick="downloadPDF()">📥 Download PDF</button>
           <button class="modal-btn modal-btn-close" onclick="closeModal()">Close</button>
         </div>
@@ -840,31 +840,76 @@
       showToast('📄 Invoice PDF downloaded!');
     }
     
-    // Send invoice via email with PDF
-    function sendInvoice() {
-      const result = generatePDF();
-      if (!result) return;
-      const weekRange = result.weekRange;
-      const filename = 'Invoice-AbelBustos-' + weekRange.replace(/[^a-zA-Z0-9-]/g, '') + '.pdf';
+    // Send invoice via API (auto-emails to AP with PDF)
+    async function sendInvoice() {
+      const weekKey = getWeekKey(currentWeekStart);
+      const weekData = timesheetData[weekKey] || { hours: {}, notes: '' };
+      const weekRange = formatWeekRange(currentWeekStart);
+      const invoiceNum = Math.floor((currentWeekStart.getTime() - new Date('2025-01-01').getTime()) / (7 * 24 * 60 * 60 * 1000)) + 200;
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 7);
+      const dueDateStr = dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       
-      // Download the PDF
-      result.doc.save(filename);
+      // Build workers array
+      const workers = [];
+      let subtotal = 0;
       
-      // Open mailto
-      const subject = encodeURIComponent(`Invoice - Abel Bustos Crew - ${weekRange}`);
-      const body = encodeURIComponent(
-        `Hi Zac,\n\n` +
-        `Please find attached the PDF invoice for the week of ${weekRange}.\n\n` +
-        `Filename: ${filename}\n` +
-        `Total Due: $${result.subtotal.toFixed(2)}\n` +
-        `Payable to: Abel Bustos\n\n` +
-        `Please don't forget to attach the downloaded PDF to this email.\n\n` +
-        `Thank you!`
-      );
+      Object.entries(WORKERS).forEach(([workerId, worker]) => {
+        let totalHours = 0;
+        DAYS.forEach(day => {
+          totalHours += parseFloat(weekData.hours[`${workerId}-${day}`] || 0);
+        });
+        if (totalHours > 0) {
+          const amount = totalHours * worker.rate;
+          subtotal += amount;
+          workers.push({
+            name: worker.name,
+            hours: totalHours,
+            rate: worker.rate,
+            amount: amount
+          });
+        }
+      });
       
-      window.open(`mailto:${ZAC_EMAIL}?subject=${subject}&body=${body}`, '_blank');
-      closeModal();
-      showToast('📄 Invoice PDF downloaded! Attach it to the email.');
+      // Build invoice data
+      const invoiceData = {
+        invoiceNumber: invoiceNum,
+        date: today,
+        dueDate: dueDateStr,
+        contractor: {
+          name: 'Abel Bustos',
+          address: '1301 Harvey Rd apt 291',
+          city: 'College Station, TX 77840',
+          phone: '956-258-7694'
+        },
+        workers: workers,
+        total: subtotal,
+        week: weekRange,
+        project: 'Warehouse work'
+      };
+      
+      try {
+        showToast('📤 Sending invoice to AP...');
+        
+        const response = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(invoiceData)
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}`);
+        }
+        
+        const result = await response.json();
+        closeModal();
+        showToast(`✅ Invoice #${invoiceNum} sent to ap@thelightpark.com!`);
+        
+      } catch (error) {
+        console.error('Error sending invoice:', error);
+        showToast('❌ Failed to send invoice. Try downloading PDF instead.', true);
+      }
     }
     
     // Show toast
