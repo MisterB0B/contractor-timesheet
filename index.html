@@ -841,80 +841,41 @@
     }
     
     // Send invoice via backend API (auto-emails with PDF)
-    async function sendInvoice() {
-      const weekKey = getWeekKey(currentWeekStart);
-      const weekData = timesheetData[weekKey] || { hours: {}, notes: '' };
-      const weekRange = formatWeekRange(currentWeekStart);
-      const invoiceNum = Math.floor((currentWeekStart.getTime() - new Date('2025-01-01').getTime()) / (7 * 24 * 60 * 60 * 1000)) + 200;
-      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 7);
-      const dueDateStr = dueDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      
-      // Build workers array
-      const workers = [];
-      let subtotal = 0;
-      
-      WORKERS.forEach(worker => {
-        // weekData.hours is stored as an array: [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
-        const hoursArray = weekData.hours?.[worker.id] || [];
-        const totalHours = hoursArray.reduce((sum, h) => sum + (parseFloat(h) || 0), 0);
-        
-        if (totalHours > 0) {
-          const amount = totalHours * worker.rate;
-          subtotal += amount;
-          workers.push({
-            name: worker.name,
-            hours: totalHours,
-            rate: worker.rate,
-            amount: amount
-          });
-        }
-      });
-      
-      if (workers.length === 0) {
+    function sendInvoice() {
+      // Generate PDF and get the result
+      const result = generatePDF();
+      if (!result) {
         showToast('❌ No hours entered - cannot send invoice', true);
         return;
       }
       
-      // Build invoice data
-      const invoiceData = {
-        invoiceNumber: invoiceNum,
-        date: today,
-        dueDate: dueDateStr,
-        contractor: {
-          name: 'Abel Bustos',
-          address: '1301 Harvey Rd apt 291',
-          city: 'College Station, TX 77840',
-          phone: '956-258-7694'
-        },
-        workers: workers,
-        total: subtotal,
-        week: weekRange,
-        project: 'Warehouse work'
-      };
+      const weekRange = result.weekRange;
+      const subtotal = result.subtotal;
+      const invoiceNum = Math.floor((currentWeekStart.getTime() - new Date('2025-01-01').getTime()) / (7 * 24 * 60 * 60 * 1000)) + 200;
+      const filename = `Invoice-AbelBustos-${weekRange.replace(/[^a-zA-Z0-9-]/g, '')}.pdf`;
       
-      try {
-        showToast('📤 Sending invoice to AP...');
-        
-        const response = await fetch(INVOICE_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(invoiceData)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Server returned ${response.status}`);
-        }
-        
-        const result = await response.json();
-        closeModal();
-        showToast(`✅ Invoice #${invoiceNum} automatically emailed to AP with PDF!`);
-        
-      } catch (error) {
-        console.error('Error sending invoice:', error);
-        showToast('❌ Failed to send invoice automatically. Contact Bob.', true);
-      }
+      // Download the PDF
+      result.doc.save(filename);
+      
+      // Build email
+      const ZAC_EMAIL = 'zthompson@amstadco.com';
+      const BOB_EMAIL = 'bobdodgecreative@gmail.com';
+      const subject = encodeURIComponent(`Invoice - Abel Bustos Crew - ${weekRange}`);
+      const body = encodeURIComponent(
+        `Hi Zac,\n\n` +
+        `Please find attached the PDF invoice for the week of ${weekRange}.\n\n` +
+        `Filename: ${filename}\n` +
+        `Total Due: $${subtotal.toFixed(2)}\n` +
+        `Payable to: Abel Bustos\n\n` +
+        `Please don't forget to attach the downloaded PDF to this email.\n\n` +
+        `Thank you!`
+      );
+      
+      // Open mailto with both recipients
+      window.open(`mailto:${ZAC_EMAIL},${BOB_EMAIL}?subject=${subject}&body=${body}`, '_blank');
+      
+      closeModal();
+      showToast('📄 Invoice PDF downloaded! Email opened - attach the PDF.');
     }
     
     // Show toast
