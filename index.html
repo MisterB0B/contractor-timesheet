@@ -855,11 +855,11 @@
       const workers = [];
       let subtotal = 0;
       
-      Object.entries(WORKERS).forEach(([workerId, worker]) => {
-        let totalHours = 0;
-        DAYS.forEach(day => {
-          totalHours += parseFloat(weekData.hours[`${workerId}-${day}`] || 0);
-        });
+      WORKERS.forEach(worker => {
+        // weekData.hours is stored as an array: [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+        const hoursArray = weekData.hours?.[worker.id] || [];
+        const totalHours = hoursArray.reduce((sum, h) => sum + (parseFloat(h) || 0), 0);
+        
         if (totalHours > 0) {
           const amount = totalHours * worker.rate;
           subtotal += amount;
