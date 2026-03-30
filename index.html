@@ -621,7 +621,7 @@
       
       let subtotal = 0;
       const rows = WORKERS.map(worker => {
-        const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + b, 0);
+        const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + (parseFloat(b) || 0), 0);
         const total = hours * worker.rate;
         subtotal += total;
         return { name: worker.name, hours, rate: worker.rate, total };
@@ -717,6 +717,7 @@
     
     // Generate PDF invoice
     function generatePDF() {
+      try {
       saveCurrentWeek();
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -794,7 +795,7 @@
       // Table data
       let subtotal = 0;
       const tableRows = WORKERS.map(worker => {
-        const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + b, 0);
+        const hours = (weekData.hours?.[worker.id] || []).reduce((a, b) => a + (parseFloat(b) || 0), 0);
         const total = hours * worker.rate;
         subtotal += total;
         return hours > 0 ? [worker.name, String(hours), '$' + worker.rate.toFixed(2), '$' + total.toFixed(2)] : null;
@@ -829,6 +830,7 @@
       }
       
       return { doc, weekRange, subtotal };
+      } catch(e) { console.error("PDF error:", e); alert("PDF error: " + e.message); return null; }
     }
     
     // Download PDF only
